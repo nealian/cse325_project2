@@ -1,10 +1,20 @@
-CC=gcc
-CFLAGS=-ggdb -Wall
+############################################################
+# shell Makefile
+# by Ian Neal & Rob Kelly
+#
+# `make` to build SANIC SHEEL normally
+# `make clean` to clean build files
+#
+############################################################
+CC = gcc
+CFLAGS = -ggdb -Wall
+OUT = shell
+RM = rm -f
 
-all: 
+all: shell
 
-example_myshell: example_myshell.c
-        $(CC) $(CFLAGS) -o $@ $<
+shell: shell.c
+	$(CC) $(CFLAGS) -o $(OUT) $<
 
 clean:
-        rm example_myshell
+	$(RM) $(OUT) *.o *~
