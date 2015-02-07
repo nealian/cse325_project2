@@ -1,18 +1,20 @@
 /*******************************************************************************
-/
-/ filename: myshell.c
-/ description: A very basic shell that allows commands to be run in the
-/   foreground or background, but does not have any common shell builtins,
-/   besides "exit".  There are also no shell variables, and no return status of
-/   executed foreground commands is available.
-/ author: Neal, Ian
-/ class: CSE 222 S14
-/ instructor: Zheng
-/ assignment: Project #3
-/ assigned: Mar. 3, 2014
-/ due: Mar. 10, 2014
-/
-*******************************************************************************/
+ *
+ * filename: shell.c
+ *
+ * description: A very basic shell that allows commands to be run in the
+ *              foreground or background, can run multiple commands
+ *              concurrently, and can read a batch file of commands and run them
+ *              each sequentially. No shell variables are available, and no
+ *              built-in shell functions exist besides `quit`.
+ *
+ * authors: Ian Neal, Rob Kelly
+ * class: CSE 325
+ * instructor: Zheng
+ * assignment: Lab Project 2
+ * assigned: Jan 18 2015
+ * due: Feb 11 2015
+ ******************************************************************************/
 
 // *INCLUDES*
 #include <errno.h> // perror
@@ -75,8 +77,12 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-// Print when a child exits; a signal handler for SIGCHLD
-// Got a hint for this from http://stackoverflow.com/questions/13320159
+/**
+ * Print when a child exits; a signal handler for SIGCHLD.
+ * Got a hint for this from http://stackoverflow.com/questions/13320159
+ *
+ * @param signum  Signal whose behavior is handled. Unused.
+ */
 void child_handler(int signum) {
   int exitstat;
   int pid;
@@ -85,7 +91,13 @@ void child_handler(int signum) {
   }
 }
 
-// Execute the command, and run in the background if bg is true
+/**
+ * Execute the command, and run in the background if bg is true.
+ *
+ * @param args  Array of strings. First element is the program to run,
+ *              the rest of the array are the arguments.
+ * @param bg    If true, the command is run in the background.
+ */
 void execute(char **args, bool bg) {
   pid_t pid;
   pid = fork();
@@ -101,7 +113,11 @@ void execute(char **args, bool bg) {
   }
 }
 
-// After the args are used, free each.
+/**
+ * After the args are used, free each.
+ *
+ * @param args  Array of strings. Each will be freed.
+ */
 void free_args(char **args) {
   int i;
   for(i=0; args[i] != NULL && i <= MAX_LINE / 2; i++) {
@@ -110,10 +126,16 @@ void free_args(char **args) {
   }
 }
 
-// A safer string-copy that also ensures null-termination. Creates copy buffer.
-// Note that the pointer returned should be freed after its use.
-// Based on https://www.sourceware.org/ml/libc-alpha/2000-08/msg00061.html
-// That link is wrong, though
+/**
+ * A safer string-copy that also ensures null-termination. Creates copy buffer.
+ * Note that the pointer returned should be freed after its use.
+ * Based on https://www.sourceware.org/ml/libc-alpha/2000-08/msg00061.html
+ * That link is wrong, though
+ *
+ * @param src   Original string to be copied.
+ * @param size  Length of source string.
+ * @return      A copy of the source string, in newly allocated memory.
+ */
 char *mystrcpy(char *src, size_t size) {
   char *dest = malloc(size * sizeof(char));
   strncpy(dest, src, size - 1);
@@ -121,7 +143,16 @@ char *mystrcpy(char *src, size_t size) {
   return dest;
 }
 
-// Transfer the DELIMITER-separated string in buf to separate entries in args
+/**
+ * Transfer the DELIMITER-separated string in buf to separate entries in args
+ *
+ * @param buf   A line taken from input with a command and list of arguments.
+ * @param argc  Pointer to argument counter. On return, contains the number of
+ *              arguments in the line.
+ * @param argv  Empty array of strings. On return, contains a representation of
+ *              the command as a list of arguments. Each element must be freed
+ *              by the caller.
+ */
 void parse_input(char *buf, int *argc, char **argv) {
   char *bufcpy = NULL;
   char *token = NULL;
@@ -133,8 +164,14 @@ void parse_input(char *buf, int *argc, char **argv) {
   }
 }
 
-// Strips the "&" from the end of argv and returns true, if present. Otherwise,
-// returns false.
+/**
+ * Strips the "&" from the end of argv and returns true, if present.
+ *
+ * @param argc  Length of argument list.
+ * @param argv  List of arguments to be filtered.
+ * @return      True if an `&` was stripped from the argument list,
+ *              false otherwise.
+ */
 bool strip_bg(int *argc, char **argv) {
   bool bg = false;
   if(!strcmp(argv[*argc - 1], "&")) {
@@ -146,8 +183,13 @@ bool strip_bg(int *argc, char **argv) {
   return bg;
 }
 
-// Strips a newline from the end of a string, if it exists.  Useful for dealing
-// with strings from stdin.
+/**
+ * Strips a newline from the end of a string, if it exists.  Useful for dealing
+ * with strings from stdin.
+ *
+ * @param str  A string.
+ * @param len  Index of the last character in the string (length - 1).
+ */
 void strip_newline(char *str, size_t len) {
   if(str[len] == '\n')
     str[len] = '\0';
