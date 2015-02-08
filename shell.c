@@ -1,9 +1,12 @@
 /*******************************************************************************
  *
- * The required header...
  * filename: shell.c
  *
- * description:
+ * description: A very basic shell that allows commands to be run in the
+ *              foreground or background, can run multiple commands
+ *              concurrently, and can read a batch file of commands and run them
+ *              each sequentially. No shell variables are available, and no
+ *              built-in shell functions exist besides `quit`.
  *
  * authors: Ian Neal, Rob Kelly
  * class: CSE 325
@@ -12,17 +15,6 @@
  * assigned: Jan 18 2015
  * due: Feb 11 2015
  ******************************************************************************/
-
-/**
- * @file shell.c
- * @brief The simple Sanic Teem shell
- *
- * 
- *
- * @author Ian Neal
- * @author Rob Kelly
- * @bug No known bugs.
- */
 
 // *INCLUDES*
 #include <errno.h> // perror
