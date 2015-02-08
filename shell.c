@@ -71,7 +71,12 @@ int main(int argc, char **argv) {
     fgets(buf, MAX_LINE, stdin);
     buf_len = strlen(buf) - 1;
     strip_newline(buf, buf_len);
-    if (!strcmp(buf, "exit")) {
+    if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) {
+        // "quit" handling required; "exit" just becuase I keep forgetting
+      should_run = false;
+    } else if(feof(stdin)) {
+        // Handle EOF (separate from "quit" for simple style choice; print "\n")
+      putchar('\n');
       should_run = false;
     } else if(buf_len) { // Only exec if entry is not just "\n"
       parse_input(buf, &myargc, myargv);
