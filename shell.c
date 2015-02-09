@@ -27,18 +27,17 @@
 #include <stdbool.h> // bool, true, false
 
 // *CONSTANTS*
-#define DELIMITER " " // The delimiter between arguments
+#define ARG_DELIMITER " " // The delimiter between arguments
+#define CUR_DELIMITER ";" // The delimiter between concurrent statements
 #define MAX_LINE 80 // The maximum number of characters to allow for input
 #define PS1 "SANIC TEEM> " // The default prompt; $PS1 is the prompt variable
 #define ERR_MSG "shell: Error" // Error message, for perror
 
 // *FUNCTION PROTOTPYES*
-void child_handler(int signum);
-void execute(char **args, bool bg);
+void execute_many(char ***args, size_t num);
 void free_args(char **args);
 char *mystrcpy(char *src, size_t size);
-void parse_input(char *buf, int *argc, char **argv);
-bool strip_bg(int *argc, char **argv);
+void parse_input(char *buf, char **argv);
 void strip_newline(char *str, size_t len);
 int run_interactive();
 int run_batch(char *fname);
@@ -75,39 +74,60 @@ int main(int argc, char **argv) {
 }
 
 /**
- * Print when a child exits; a signal handler for SIGCHLD.
- * Got a hint for this from http://stackoverflow.com/questions/13320159
+ * Execute the concurrent commands.  Will wait to return until all children have
+ * finished execution.  Referenced http://stackoverflow.com/a/1381144
  *
- * @param signum  Signal whose behavior is handled. Unused.
+ * @param args  Array of arrays of strings.  For each array of strings, the
+ *              first element is the program to run, the rest are arguments
+ * @param num   The number of concurrent commands to run; we here assume that
+ *              args[] is of this length.
  */
-void child_handler(int signum) {
-  int exitstat;
-  int pid;
-  while((pid = waitpid(-1, &exitstat, WNOHANG)) > 0) {
-    printf("Background child (pid %i) exited with status %i\n", pid, exitstat);
-  }
-}
-
-/**
- * Execute the command, and run in the background if bg is true.
- *
- * @param args  Array of strings. First element is the program to run,
- *              the rest of the array are the arguments.
- * @param bg    If true, the command is run in the background.
- */
-void execute(char **args, bool bg) {
+void execute_many(char ***args, size_t num) {
   pid_t pid;
-  pid = fork();
-  if(pid == 0) {
-    if(execvp(args[0], args) < 0) { // An error occured with the exec'd program
+  pid_t *children = malloc(num * sizeof(pid_t));
+  int i;
+  bool waiting;
+
+  // Child execution
+  for (i=0; i < num; i++) {
+    pid = fork();
+    if (pid == 0) {
+      // Am child; do child-y things
+      if (execvp(args[i][0], args[i]) < 0) { // An error occured exec()ing
+	perror(ERR_MSG);
+      }
+      exit(0);
+    } else if (pid < 0) { // An error occured fork()ing
       perror(ERR_MSG);
+    } else {
+      children[i] = pid;
     }
-    exit(0);
-  } else if(pid < 0){ // An error occured fork()ing
-    perror(ERR_MSG);
-  } else if(!bg) { // Gonna wait
-    waitpid(pid, NULL, 0);
   }
+
+  // Waiting for children
+  do {
+    waiting = false;
+    for (i=0; i<num; i++) {
+      if (children[i] > 0) {
+	pid = waitpid(children[i], NULL, WNOHANG); // use WNOHANG for concurrency
+	if (pid < 0) { // An error occured
+	  perror(ERR_MSG);
+	} else if (pid == 0) { // Still waiting on children[i]
+	  waiting = true;
+	} else { // This particular child is done!
+	  children[i] = 0;
+	}
+      }
+      // Let everyting run
+      sleep(1);
+    }
+  } while (waiting);
+
+  // We malloc()d it, now we gotta free() it.
+  free(children);
+  for (i=0; i<num; i++)
+    free_args(args[i]);
+  free(args);
 }
 
 /**
@@ -141,44 +161,24 @@ char *mystrcpy(char *src, size_t size) {
 }
 
 /**
- * Transfer the DELIMITER-separated string in buf to separate entries in args
+ * Transfer the ARG_DELIMITER-separated string (buf) to separate entries in args
  *
  * @param buf   A line taken from input with a command and list of arguments.
- * @param argc  Pointer to argument counter. On return, contains the number of
- *              arguments in the line.
  * @param argv  Empty array of strings. On return, contains a representation of
  *              the command as a list of arguments. Each element must be freed
  *              by the caller.
  */
-void parse_input(char *buf, int *argc, char **argv) {
+void parse_input(char *buf, char **argv) {
+  int argc = 0;
   char *bufcpy = NULL;
   char *token = NULL;
   bufcpy = mystrcpy(buf, MAX_LINE); // strtok() modifies the original
-  token = strtok(bufcpy, DELIMITER);
+  token = strtok(bufcpy, ARG_DELIMITER);
   argv[0] = mystrcpy(token, strlen(token) + 1); // Needs room for the NULL
-  for((*argc)++; (token = strtok(NULL, DELIMITER)); (*argc)++) {
-    argv[*argc] = mystrcpy(token, strlen(token) + 1);
+  for(argc++; (token = strtok(NULL, ARG_DELIMITER)); argc++) {
+    argv[argc] = mystrcpy(token, strlen(token) + 1);
   }
   free(bufcpy);
-}
-
-/**
- * Strips the "&" from the end of argv and returns true, if present.
- *
- * @param argc  Length of argument list.
- * @param argv  List of arguments to be filtered.
- * @return      True if an `&` was stripped from the argument list,
- *              false otherwise.
- */
-bool strip_bg(int *argc, char **argv) {
-  bool bg = false;
-  if(!strcmp(argv[*argc - 1], "&")) {
-    bg = true;
-    free(argv[*argc - 1]);
-    argv[*argc] = NULL;
-    (*argc)--;
-  }
-  return bg;
 }
 
 /**
@@ -270,6 +270,32 @@ int read_line(FILE *stream, char *buf) {
 }
 
 /**
+ * Split the current buffer into an array of commands to be run.
+ *
+ * @param buf     The buffer of the current line of input; will be modified.
+ * @param buf_len The length of the buffered line
+ * @param args    A reference to the array we'll allocate and fill here
+ * @param num     A reference to the number of commands
+ * @return        True if execution should continue after this iteration,
+ *                false if we've reached the end of the input.
+ */
+bool split_concurrent(char *buf, size_t buf_len, char ****args, size_t *num) {
+  // TODO: This
+  /* int myargc = 0; */
+  /* char *myargv[MAX_LINE/2 + 1] = {NULL}; */
+
+  /* if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) { */
+  /*   // "quit" handling required; "exit" just because I keep forgetting */
+  /*   return false; */
+  /* } */
+
+  /* parse_input(buf, &myargc, myargv); */
+  /* execute(myargv, strip_bg(&myargc, myargv)); */
+
+  /* free_args(myargv); */
+}
+
+/**
  * The shell's read-evaluate-print cycle. Reads a line of input from a stream,
  * parses and evaluates it, and prints the result.
  *
@@ -280,21 +306,14 @@ int read_line(FILE *stream, char *buf) {
  */
 bool shell_repl(char *buf, size_t buf_len) {
   fflush(stdout); // Flush output from last run before starting new run
-
   strip_newline(buf, buf_len);
 
-  if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) {
-    // "quit" handling required; "exit" just becuase I keep forgetting
-    return false;
-  } else if(buf_len) { // Only exec if entry is not just "\n"
-    int myargc = 0;
-    char *myargv[MAX_LINE/2 + 1] = {NULL};
+  char ***myargv;
+  size_t num_concurrent;
+  bool to_continue = true;
 
-    parse_input(buf, &myargc, myargv);
-    execute(myargv, strip_bg(&myargc, myargv));
+  to_continue = split_concurrent(buf, buf_len, &myargv, &num_concurrent);
+  execute_many(myargv, num_concurrent);
 
-    free_args(myargv);
-  }
-
-  return true;
+  return to_continue;
 }
