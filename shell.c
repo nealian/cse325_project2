@@ -167,6 +167,7 @@ void parse_input(char *buf, int *argc, char **argv) {
   for((*argc)++; (token = strtok(NULL, DELIMITER)); (*argc)++) {
     argv[*argc] = mystrcpy(token, strlen(token) + 1);
   }
+  free(bufcpy);
 }
 
 /**
