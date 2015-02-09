@@ -29,8 +29,8 @@
 // *CONSTANTS*
 #define DELIMITER " " // The delimiter between arguments
 #define MAX_LINE 80 // The maximum number of characters to allow for input
-#define PS1 "SANIC TEEM> " // The default prompt; $PS1 is a shell's prompt variable
-#define SHELL_NAME "myshell" // The name of the shell; to be printed on errors
+#define PS1 "SANIC TEEM> " // The default prompt; $PS1 is the prompt variable
+#define ERR_MSG "shell: Error" // Error message, for perror
 
 // *FUNCTION PROTOTPYES*
 void child_handler(int signum);
@@ -40,43 +40,36 @@ char *mystrcpy(char *src, size_t size);
 void parse_input(char *buf, int *argc, char **argv);
 bool strip_bg(int *argc, char **argv);
 void strip_newline(char *str, size_t len);
-
+void run_interactive();
+void run_batch(char *fname);
+bool shell_repl(FILE *stream);
 
 // *MAIN PROGRAM*
 int main(int argc, char **argv) {
-  int myargc = 0;
-  char *myargv[MAX_LINE/2 + 1] = {NULL}; // Null-terminated string array? Please!
-  char buf[MAX_LINE];
-  size_t buf_len = 0;
-  bool should_run = true;
-  bool bg;
 
+  // According to the man-page, signal() is not portable, and sigaction()
+  // should be used instead; however, I have NO idea how to use sigaction()
+  // and I DO know how to use signal() for basic things.  I'm sure we'll go
+  // over sigaction() in class later.
   signal(SIGCHLD, child_handler);
-    // According to the man-page, signal() is not portable, and sigaction()
-    // should be used instead; however, I have NO idea how to use sigaction()
-    // and I DO know how to use signal() for basic things.  I'm sure we'll go
-    // over sigaction() in class later.
 
-  while(should_run) {
-    printf(PS1);
-    fflush(stdout); // Flush output from last run before starting new run
-    fgets(buf, MAX_LINE, stdin);
-    buf_len = strlen(buf) - 1;
-    strip_newline(buf, buf_len);
-    if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) {
-        // "quit" handling required; "exit" just becuase I keep forgetting
-      should_run = false;
-    } else if(feof(stdin)) {
-        // Handle EOF (separate from "quit" for simple style choice; print "\n")
-      putchar('\n');
-      should_run = false;
-    } else if(buf_len) { // Only exec if entry is not just "\n"
-      parse_input(buf, &myargc, myargv);
-      bg = strip_bg(&myargc, myargv);
-      execute(myargv, bg);
-      free_args(myargv);
-      myargc = 0;
-    }
+  switch(argc) {
+    case 1: // Invoked with no arguments, run interactive mode
+      run_interactive();
+      break;
+
+    case 2: // Given one argument, treat it as a filename and run batch mode
+      run_batch(argv[1]);
+      break;
+
+    default: // Given weird arguments. Print usage and exit.
+      errno = EINVAL;
+      perror(ERR_MSG);
+      printf("Usage:\n");
+      printf("\t%s\n", argv[0]);
+      printf("\t%s [BATCHFILE]\n", argv[0]);
+
+      return -1;
   }
 
   return 0;
@@ -108,11 +101,11 @@ void execute(char **args, bool bg) {
   pid = fork();
   if(pid == 0) {
     if(execvp(args[0], args) < 0) { // An error occured with the exec'd program
-      perror(SHELL_NAME);
+      perror(ERR_MSG);
     }
     exit(0);
   } else if(pid < 0){ // An error occured fork()ing
-    perror(SHELL_NAME);
+    perror(ERR_MSG);
   } else if(!bg) { // Gonna wait
     waitpid(pid, NULL, 0);
   }
@@ -198,4 +191,61 @@ bool strip_bg(int *argc, char **argv) {
 void strip_newline(char *str, size_t len) {
   if(str[len] == '\n')
     str[len] = '\0';
+}
+
+/**
+ * When invoked without a filename argument, the shell runs in interactive mode,
+ * and takes input line by line from stdin. The shell also prints a prompt for
+ * the user.
+ */
+void run_interactive() {
+  do {
+    printf(PS1);
+  } while(shell_repl(stdin));
+}
+
+/**
+ * When given a filename, the shell runs in batch mode, taking input from each
+ * line in the file sequentially. No prompt is displayed.
+ *
+ * @param fname  Path of a file from which to read input.
+ */
+void run_batch(char* fname) {
+  // TODO: this thing
+}
+
+/**
+ * The shell's read-evaluate-print cycle. Reads a line of input from a stream,
+ * parses and evaluates it, and prints the result.
+ *
+ * @param stream  Input stream to read from. Could be a file or stdin.
+ * @return        True if execution should continue after this iteration,
+ *                false if we've reached the end of the input.
+ */
+bool shell_repl(FILE *stream) {
+  fflush(stdout); // Flush output from last run before starting new run
+
+  char buf[MAX_LINE];
+  fgets(buf, MAX_LINE, stream);
+  size_t buf_len = strlen(buf) - 1;
+  strip_newline(buf, buf_len);
+
+  if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) {
+    // "quit" handling required; "exit" just becuase I keep forgetting
+    return false;
+  } else if(feof(stream)) {
+    // Handle EOF (separate from "quit" for simple style choice; print "\n")
+    putchar('\n');
+    return false;
+  } else if(buf_len) { // Only exec if entry is not just "\n"
+    int myargc = 0;
+    char *myargv[MAX_LINE/2 + 1] = {NULL};
+
+    parse_input(buf, &myargc, myargv);
+    execute(myargv, strip_bg(&myargc, myargv));
+
+    free_args(myargv);
+  }
+
+  return true;
 }
