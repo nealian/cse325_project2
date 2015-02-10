@@ -1,0 +1,4 @@
+echo "Testing mixed sequential and concurrent input terminated by 'quit'"
+ls; uname -a
+echo "HEY KID I'M A COMPUTAH!"; echo "STOP ALL THE DOWNLOAD'N!"; ls
+quit

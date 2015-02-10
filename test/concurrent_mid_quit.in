@@ -1,0 +1,3 @@
+echo "Testing mixed sequential and concurrent input terminated part-way through a line with 'quit'"
+ls; uname -a
+echo "HEY KID I'M A COMPUTAH!"; quit; echo "PUT ME IN, COACH! I'M A WINNER!"
