@@ -19,7 +19,7 @@
 // *INCLUDES*
 #include <errno.h> // perror
 #include <signal.h> // signal, SIGCHLD
-#include <stdio.h> // printf, fflush, fgets,
+#include <stdio.h> // printf, fflush, fgets, fopen
 #include <stdlib.h> // exit, free, malloc
 #include <string.h> // strncpy, strlen, strtok, strcmp
 #include <sys/wait.h> // waitpid, WNOHANG
@@ -212,7 +212,19 @@ void run_interactive() {
  * @param fname  Path of a file from which to read input.
  */
 void run_batch(char* fname) {
-  // TODO: this thing
+
+  FILE *fstream;
+  if(!(fstream = fopen(fname, "r"))) {
+    perror(ERR_MSG);
+    printf("Could not open batch file %s, aborting...\n", fname);
+    return;
+  }
+
+  do {
+    // TODO: print input line...
+  } while(shell_repl(fstream));
+
+  fclose(fstream);
 }
 
 /**
