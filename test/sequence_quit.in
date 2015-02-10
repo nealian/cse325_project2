@@ -1,0 +1,5 @@
+echo "Testing sequential input terminated by 'quit'"
+ls
+uname -a
+echo "HEY KID I'M A COMPUTAH!"
+quit
