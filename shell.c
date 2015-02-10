@@ -40,9 +40,9 @@ char *mystrcpy(char *src, size_t size);
 void parse_input(char *buf, int *argc, char **argv);
 bool strip_bg(int *argc, char **argv);
 void strip_newline(char *str, size_t len);
-void run_interactive();
-void run_batch(char *fname);
-size_t read_line(FILE *stream, char *buf);
+int run_interactive();
+int run_batch(char *fname);
+int read_line(FILE *stream, char *buf);
 bool shell_repl(char *buf, size_t buf_len);
 
 // *MAIN PROGRAM*
@@ -56,11 +56,11 @@ int main(int argc, char **argv) {
 
   switch(argc) {
     case 1: // Invoked with no arguments, run interactive mode
-      run_interactive();
+      return run_interactive();
       break;
 
     case 2: // Given one argument, treat it as a filename and run batch mode
-      run_batch(argv[1]);
+      return run_batch(argv[1]);
       break;
 
     default: // Given weird arguments. Print usage and exit.
@@ -72,8 +72,6 @@ int main(int argc, char **argv) {
 
       return -1;
   }
-
-  return 0;
 }
 
 /**
@@ -200,18 +198,20 @@ void strip_newline(char *str, size_t len) {
  * and takes input line by line from stdin. The shell also prints a prompt for
  * the user.
  */
-void run_interactive() {
+int run_interactive() {
   char buf[MAX_LINE]; // Line buffer
-  size_t buf_len;
+  int buf_len;
   do {
     printf(PS1);
 
-    // Read line, handle bad return status (-1)
-    if((buf_len = read_line(stdin, buf)) == -1) {
-      return;
+    // Read line, handle bad return status (<= 0)
+    if((buf_len = read_line(stdin, buf)) <= 0) {
+      return buf_len;
     }
     
   } while(shell_repl(buf, buf_len - 1));
+
+  return 0;
 }
 
 /**
@@ -220,8 +220,9 @@ void run_interactive() {
  *
  * @param fname  Path of a file from which to read input.
  */
-void run_batch(char* fname) {
+int run_batch(char* fname) {
   // TODO: this thing
+  return 0;
 }
 
 /**
@@ -230,19 +231,20 @@ void run_batch(char* fname) {
  * @param stream  File pointer representing the stream from which to read.
  * @param buf     Caller-allocated buffer in which to store the line.
  * @return        On success, the length of the string read, in bytes.
- *                Or -1 if a special case (EOF or error) was encountered.
+ *                Or 0 on EOF, <0 on error.
  */
-size_t read_line(FILE *stream, char *buf) {
+int read_line(FILE *stream, char *buf) {
   // Read from stream and handle errors
   if(!fgets(buf, MAX_LINE, stream)) {
     if(feof(stream)) {
       // Handle EOF (also print newline)
       putchar('\n');
+      return 0;
     } else {
       // Handle actual spooky errors
       perror(ERR_MSG);
+      return -1;
     }
-    return -1;
   }
 
   return strlen(buf);
