@@ -42,7 +42,7 @@ bool strip_bg(int *argc, char **argv);
 void strip_newline(char *str, size_t len);
 void run_interactive();
 void run_batch(char *fname);
-bool shell_repl(FILE *stream);
+bool shell_repl(char *buf, size_t buf_len);
 
 // *MAIN PROGRAM*
 int main(int argc, char **argv) {
@@ -200,9 +200,17 @@ void strip_newline(char *str, size_t len) {
  * the user.
  */
 void run_interactive() {
+  char buf[MAX_LINE]; // Line buffer
   do {
     printf(PS1);
-  } while(shell_repl(stdin));
+    fgets(buf, MAX_LINE, stdin); // TODO: error handling
+
+    if(feof(stdin)) {
+      // Handle EOF (also print newline)
+      putchar('\n');
+      return;
+    }
+  } while(shell_repl(buf, strlen(buf) - 1));
 }
 
 /**
@@ -219,24 +227,18 @@ void run_batch(char* fname) {
  * The shell's read-evaluate-print cycle. Reads a line of input from a stream,
  * parses and evaluates it, and prints the result.
  *
- * @param stream  Input stream to read from. Could be a file or stdin.
- * @return        True if execution should continue after this iteration,
- *                false if we've reached the end of the input.
+ * @param buf      Buffer containing the line from the input stream to act on.
+ * @param buf_len  Length of the line buffer.
+ * @return         True if execution should continue after this iteration,
+ *                 false if we've reached the end of the input.
  */
-bool shell_repl(FILE *stream) {
+bool shell_repl(char *buf, size_t buf_len) {
   fflush(stdout); // Flush output from last run before starting new run
 
-  char buf[MAX_LINE];
-  fgets(buf, MAX_LINE, stream);
-  size_t buf_len = strlen(buf) - 1;
   strip_newline(buf, buf_len);
 
   if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) {
     // "quit" handling required; "exit" just becuase I keep forgetting
-    return false;
-  } else if(feof(stream)) {
-    // Handle EOF (separate from "quit" for simple style choice; print "\n")
-    putchar('\n');
     return false;
   } else if(buf_len) { // Only exec if entry is not just "\n"
     int myargc = 0;
