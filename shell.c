@@ -42,6 +42,7 @@ bool strip_bg(int *argc, char **argv);
 void strip_newline(char *str, size_t len);
 void run_interactive();
 void run_batch(char *fname);
+size_t read_line(FILE *stream, char *buf);
 bool shell_repl(char *buf, size_t buf_len);
 
 // *MAIN PROGRAM*
@@ -201,22 +202,16 @@ void strip_newline(char *str, size_t len) {
  */
 void run_interactive() {
   char buf[MAX_LINE]; // Line buffer
+  size_t buf_len;
   do {
     printf(PS1);
 
-    // Read from stream and handle errors
-    if(!fgets(buf, MAX_LINE, stdin)) {
-      if(feof(stdin)) {
-        // Handle EOF (also print newline)
-        putchar('\n');
-      } else {
-        // Handle actual spooky errors
-        perror(ERR_MSG);
-      }
+    // Read line, handle bad return status (-1)
+    if((buf_len = read_line(stdin, buf)) == -1) {
       return;
     }
-
-  } while(shell_repl(buf, strlen(buf) - 1));
+    
+  } while(shell_repl(buf, buf_len - 1));
 }
 
 /**
@@ -227,6 +222,30 @@ void run_interactive() {
  */
 void run_batch(char* fname) {
   // TODO: this thing
+}
+
+/**
+ * Read a line from the input stream and handle special cases.
+ *
+ * @param stream  File pointer representing the stream from which to read.
+ * @param buf     Caller-allocated buffer in which to store the line.
+ * @return        On success, the length of the string read, in bytes.
+ *                Or -1 if a special case (EOF or error) was encountered.
+ */
+size_t read_line(FILE *stream, char *buf) {
+  // Read from stream and handle errors
+  if(!fgets(buf, MAX_LINE, stream)) {
+    if(feof(stream)) {
+      // Handle EOF (also print newline)
+      putchar('\n');
+    } else {
+      // Handle actual spooky errors
+      perror(ERR_MSG);
+    }
+    return -1;
+  }
+
+  return strlen(buf);
 }
 
 /**
