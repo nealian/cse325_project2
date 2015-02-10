@@ -203,13 +203,19 @@ void run_interactive() {
   char buf[MAX_LINE]; // Line buffer
   do {
     printf(PS1);
-    fgets(buf, MAX_LINE, stdin); // TODO: error handling
 
-    if(feof(stdin)) {
-      // Handle EOF (also print newline)
-      putchar('\n');
+    // Read from stream and handle errors
+    if(!fgets(buf, MAX_LINE, stdin)) {
+      if(feof(stdin)) {
+        // Handle EOF (also print newline)
+        putchar('\n');
+      } else {
+        // Handle actual spooky errors
+        perror(ERR_MSG);
+      }
       return;
     }
+
   } while(shell_repl(buf, strlen(buf) - 1));
 }
 
