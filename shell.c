@@ -34,7 +34,7 @@
 #define ERR_MSG "shell: Error" // Error message, for perror
 
 // *FUNCTION PROTOTPYES*
-void execute_many(char ***args, size_t num);
+int execute_many(char ***args, size_t num);
 void free_args(char **args);
 char *mystrcpy(char *src, size_t size);
 void parse_input(char *buf, char **argv);
@@ -81,10 +81,14 @@ int main(int argc, char **argv) {
  *              first element is the program to run, the rest are arguments
  * @param num   The number of concurrent commands to run; we here assume that
  *              args[] is of this length.
+ * @return      The status of the last command; complete status field from
+ *              waitpid(2) (to get exit status, use WIFEXITED and WEXITSTATUS)
  */
-void execute_many(char ***args, size_t num) {
+int execute_many(char ***args, size_t num) {
   pid_t pid;
   pid_t *children = malloc(num * sizeof(pid_t));
+  int *child_status = malloc(num * sizeof(int));
+  int ret_status;
   int i;
   bool waiting;
 
@@ -109,7 +113,8 @@ void execute_many(char ***args, size_t num) {
     waiting = false;
     for (i=0; i<num; i++) {
       if (children[i] > 0) {
-	pid = waitpid(children[i], NULL, WNOHANG); // use WNOHANG for concurrency
+        pid = waitpid(children[i], &(child_status[i]), WNOHANG);
+        // use WNOHANG for concurrency
 	if (pid < 0) { // An error occured
 	  perror(ERR_MSG);
 	} else if (pid == 0) { // Still waiting on children[i]
@@ -128,6 +133,10 @@ void execute_many(char ***args, size_t num) {
   for (i=0; i<num; i++)
     free_args(args[i]);
   free(args);
+
+  ret_status = status[num - 1]; // Return the last status
+  free(status);
+  return ret_status;
 }
 
 /**
@@ -281,7 +290,6 @@ int read_line(FILE *stream, char *buf) {
  */
 bool split_concurrent(char *buf, size_t buf_len, char ****args, size_t *num) {
   // TODO: This
-  /* int myargc = 0; */
   /* char *myargv[MAX_LINE/2 + 1] = {NULL}; */
 
   /* if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) { */
