@@ -25,6 +25,7 @@
 #include <sys/wait.h> // waitpid, WNOHANG
 #include <unistd.h> // fork, execvp
 #include <stdbool.h> // bool, true, false
+#include <ctype.h> // isspace
 
 // *CONSTANTS*
 #define ARG_DELIMITER " " // The delimiter between arguments
@@ -34,7 +35,7 @@
 #define ERR_MSG "shell: Error" // Error message, for perror
 
 // *FUNCTION PROTOTPYES*
-int execute_many(char ***args, size_t num);
+int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num);
 void free_args(char **args);
 char *mystrcpy(char *src, size_t size);
 void parse_input(char *buf, char **argv);
@@ -42,16 +43,12 @@ void strip_newline(char *str, size_t len);
 int run_interactive();
 int run_batch(char *fname);
 int read_line(FILE *stream, char *buf);
+size_t trimwhitespace(char *out, size_t len, const char *str);
+bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE/2 + 1], int *num);
 bool shell_repl(char *buf, size_t buf_len);
 
 // *MAIN PROGRAM*
 int main(int argc, char **argv) {
-
-  // According to the man-page, signal() is not portable, and sigaction()
-  // should be used instead; however, I have NO idea how to use sigaction()
-  // and I DO know how to use signal() for basic things.  I'm sure we'll go
-  // over sigaction() in class later.
-  signal(SIGCHLD, child_handler);
 
   switch(argc) {
     case 1: // Invoked with no arguments, run interactive mode
@@ -84,7 +81,7 @@ int main(int argc, char **argv) {
  * @return      The status of the last command; complete status field from
  *              waitpid(2) (to get exit status, use WIFEXITED and WEXITSTATUS)
  */
-int execute_many(char ***args, size_t num) {
+int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
   pid_t pid;
   pid_t *children = malloc(num * sizeof(pid_t));
   int *child_status = malloc(num * sizeof(int));
@@ -132,10 +129,9 @@ int execute_many(char ***args, size_t num) {
   free(children);
   for (i=0; i<num; i++)
     free_args(args[i]);
-  free(args);
 
-  ret_status = status[num - 1]; // Return the last status
-  free(status);
+  ret_status = child_status[num - 1]; // Return the last status
+  free(child_status);
   return ret_status;
 }
 
@@ -183,9 +179,18 @@ void parse_input(char *buf, char **argv) {
   char *token = NULL;
   bufcpy = mystrcpy(buf, MAX_LINE); // strtok() modifies the original
   token = strtok(bufcpy, ARG_DELIMITER);
-  argv[0] = mystrcpy(token, strlen(token) + 1); // Needs room for the NULL
+  if (strlen(token)) {
+    argv[argc] = mystrcpy(token, strlen(token) + 1); // Needs room for the NULL
+  } else {
+    argc--;
+  }
   for(argc++; (token = strtok(NULL, ARG_DELIMITER)); argc++) {
-    argv[argc] = mystrcpy(token, strlen(token) + 1);
+    if (strlen(token)) { // Check for extra ARG_DELIMITERs
+      argv[argc] = mystrcpy(token, strlen(token) + 1);
+    } else {
+      // We have an empty string (there was an extra ARG_DELIMITER here)
+      argc--;
+    }
   }
   free(bufcpy);
 }
@@ -279,6 +284,49 @@ int read_line(FILE *stream, char *buf) {
 }
 
 /**
+ * Trim; that is, strip leading and trailing whitespace, from the buffer, and
+ * store in the given output buffer (which must be big enough to store the
+ * result).  From http://stackoverflow.com/a/122721/1342300
+ *
+ * @param out   The output buffer, already allocated
+ * @param len   The length of the input buffer
+ * @param str   The input buffer
+ *
+ * @return      The length of the new output buffer
+ */
+size_t trimwhitespace(char *out, size_t len, const char *str)
+{
+  if(len == 0)
+    return 0;
+
+  const char *end;
+  size_t out_size;
+
+  // Trim leading space
+  while(isspace(*str)) str++;
+
+  if(*str == 0)  // All spaces?
+  {
+    *out = 0;
+    return 1;
+  }
+
+  // Trim trailing space
+  end = str + strlen(str) - 1;
+  while(end > str && isspace(*end)) end--;
+  end++;
+
+  // Set output size to minimum of trimmed string length and buffer size minus 1
+  out_size = (end - str) < len-1 ? (end - str) : len-1;
+
+  // Copy trimmed string and add null terminator
+  memcpy(out, str, out_size);
+  out[out_size] = 0;
+
+  return out_size;
+}
+
+/**
  * Split the current buffer into an array of commands to be run.
  *
  * @param buf     The buffer of the current line of input; will be modified.
@@ -288,19 +336,53 @@ int read_line(FILE *stream, char *buf) {
  * @return        True if execution should continue after this iteration,
  *                false if we've reached the end of the input.
  */
-bool split_concurrent(char *buf, size_t buf_len, char ****args, size_t *num) {
-  // TODO: This
-  /* char *myargv[MAX_LINE/2 + 1] = {NULL}; */
+bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE/2 + 1], int *num) {
+  *num = 0;
+  int i=0;
+  char *bufcpy = NULL;
+  char *token = NULL;
+  char *subbufcpy = NULL;
+  char *command_buffers[MAX_LINE/2] = {NULL};
+  bool to_continue = true;
+  bufcpy = mystrcpy(buf, buf_len+1);
+  token = strtok(bufcpy, CUR_DELIMITER);
+  subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
+  if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
+    // ^Trim input and check for actual statement
+    if (!strcmp(subbufcpy, "quit") || !strcmp(subbufcpy, "exit")) {
+      // "quit" handling required; "exit" just because I keep forgetting
+      to_continue = false;
+      (*num)--; // Don't add an element for this
+    } else {
+      command_buffers[*num] = subbufcpy;
+    }
+  } else {
+    (*num)--; // Don't add an element for this; it's empty
+  }
 
-  /* if (!strcmp(buf, "quit") || !strcmp(buf, "exit")) { */
-  /*   // "quit" handling required; "exit" just because I keep forgetting */
-  /*   return false; */
-  /* } */
+  for ((*num)++; (token = strtok(NULL, CUR_DELIMITER)); (*num)++) {
+    subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
+    if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
+      // ^Trim input and check for actual statement
+      if (!strcmp(subbufcpy, "quit") || !strcmp(subbufcpy, "exit")) {
+        // "quit" handling required; "exit" just because I keep forgetting
+        to_continue = false;
+        (*num)--; // Don't add an element for this
+      } else {
+        command_buffers[*num] = subbufcpy;
+      }
+    } else {
+      (*num)--; // Don't add an element for this; it's empty
+    }
+  }
 
-  /* parse_input(buf, &myargc, myargv); */
-  /* execute(myargv, strip_bg(&myargc, myargv)); */
-
-  /* free_args(myargv); */
+  for(i=0; i<*num; i++) {
+    // Now actually process them; separated because strtok() is stateful
+    parse_input(command_buffers[i], args[i]);
+    free(command_buffers[i]);
+  }
+  free(bufcpy);
+  return to_continue;
 }
 
 /**
@@ -316,12 +398,12 @@ bool shell_repl(char *buf, size_t buf_len) {
   fflush(stdout); // Flush output from last run before starting new run
   strip_newline(buf, buf_len);
 
-  char ***myargv;
-  size_t num_concurrent;
+  char *args[MAX_LINE/2][MAX_LINE/2 + 1];
+  int num_concurrent;
   bool to_continue = true;
 
-  to_continue = split_concurrent(buf, buf_len, &myargv, &num_concurrent);
-  execute_many(myargv, num_concurrent);
+  to_continue = split_concurrent(buf, buf_len, args, &num_concurrent);
+  execute_many(args, num_concurrent);
 
   return to_continue;
 }
