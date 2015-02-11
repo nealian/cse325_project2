@@ -121,7 +121,7 @@ int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
         }
       }
       // Let everyting run
-      sleep(1);
+      sleep(0);
     }
   } while (waiting);
 
