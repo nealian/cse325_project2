@@ -329,7 +329,6 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
  */
 bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE/2 + 1], int *num) {
   *num = 0;
-  char *subbufcpy = NULL;
   char *command_buffers[MAX_LINE/2] = {NULL};
   bool to_continue = true;
   
@@ -342,7 +341,7 @@ bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE
   }
 
   do {
-    subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
+    char *subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
     if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
       // ^Trim input and check for actual statement
       if (!strcmp(subbufcpy, "quit") || !strcmp(subbufcpy, "exit")) {
