@@ -350,38 +350,21 @@ bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE
     // strtok didn't tokenize anything; most likely an empty string
     return true;
   }
-  
-  subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
-  if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
-    // ^Trim input and check for actual statement
-    if (!strcmp(subbufcpy, "quit") || !strcmp(subbufcpy, "exit")) {
-      // "quit" handling required; "exit" just because I keep forgetting
-      to_continue = false;
-      (*num)--; // Don't add an element for this
-      free(subbufcpy);
-    } else {
-      command_buffers[*num] = subbufcpy;
-    }
-  } else {
-    (*num)--; // Don't add an element for this; it's empty
-  }
 
-  for ((*num)++; (token = strtok(NULL, CUR_DELIMITER)); (*num)++) {
+  do {
     subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
     if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
       // ^Trim input and check for actual statement
       if (!strcmp(subbufcpy, "quit") || !strcmp(subbufcpy, "exit")) {
         // "quit" handling required; "exit" just because I keep forgetting
         to_continue = false;
-        (*num)--; // Don't add an element for this
         free(subbufcpy);
       } else {
         command_buffers[*num] = subbufcpy;
+        (*num)++;
       }
-    } else {
-      (*num)--; // Don't add an element for this; it's empty
     }
-  }
+  } while ((token = strtok(NULL, CUR_DELIMITER)));
 
   for(i=0; i<*num; i++) {
     // Now actually process them; separated because strtok() is stateful
