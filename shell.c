@@ -83,8 +83,8 @@ int main(int argc, char **argv) {
  */
 int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
   pid_t pid;
-  pid_t *children = calloc(num, sizeof(pid_t));
-  int *child_status = calloc(num, sizeof(int));
+  pid_t children[num];
+  int child_status[num];
   int ret_status;
   int i;
   bool waiting;
@@ -126,12 +126,10 @@ int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
   } while (waiting);
 
   // We malloc()d it, now we gotta free() it.
-  free(children);
   for (i=0; i<num; i++)
     free_args(args[i]);
 
   ret_status = child_status[num - 1]; // Return the last status
-  free(child_status);
   return ret_status;
 }
 
