@@ -30,7 +30,7 @@
 // *CONSTANTS*
 #define ARG_DELIMITER " " // The delimiter between arguments
 #define CUR_DELIMITER ";" // The delimiter between concurrent statements
-#define MAX_LINE 80 // The maximum number of characters to allow for input
+#define MAX_LINE 1024 // The maximum number of characters to allow for input
 #define PS1 "SANIC TEEM> " // The default prompt; $PS1 is the prompt variable
 #define ERR_MSG "shell: Error" // Error message, for perror
 
@@ -83,8 +83,8 @@ int main(int argc, char **argv) {
  */
 int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
   pid_t pid;
-  pid_t *children = malloc(num * sizeof(pid_t));
-  int *child_status = malloc(num * sizeof(int));
+  pid_t *children = calloc(num, sizeof(pid_t));
+  int *child_status = calloc(num, sizeof(int));
   int ret_status;
   int i;
   bool waiting;
@@ -353,6 +353,7 @@ bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE
       // "quit" handling required; "exit" just because I keep forgetting
       to_continue = false;
       (*num)--; // Don't add an element for this
+      free(subbufcpy);
     } else {
       command_buffers[*num] = subbufcpy;
     }
@@ -368,6 +369,7 @@ bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE
         // "quit" handling required; "exit" just because I keep forgetting
         to_continue = false;
         (*num)--; // Don't add an element for this
+        free(subbufcpy);
       } else {
         command_buffers[*num] = subbufcpy;
       }
