@@ -1,0 +1,4 @@
+echo "Testing sequential input terminated by EOF"
+ls
+uname -a
+echo "HEY KID I'M A COMPUTAH!"
