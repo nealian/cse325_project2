@@ -95,7 +95,7 @@ int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
     if (pid == 0) {
       // Am child; do child-y things
       if (execvp(args[i][0], args[i]) < 0) { // An error occured exec()ing
-	perror(ERR_MSG);
+        perror(ERR_MSG);
       }
       exit(0);
     } else if (pid < 0) { // An error occured fork()ing
@@ -104,7 +104,7 @@ int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
       children[i] = pid;
     }
   }
-
+  
   // Waiting for children
   do {
     waiting = false;
@@ -112,13 +112,13 @@ int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
       if (children[i] > 0) {
         pid = waitpid(children[i], &(child_status[i]), WNOHANG);
         // use WNOHANG for concurrency
-	if (pid < 0) { // An error occured
-	  perror(ERR_MSG);
-	} else if (pid == 0) { // Still waiting on children[i]
-	  waiting = true;
-	} else { // This particular child is done!
-	  children[i] = 0;
-	}
+        if (pid < 0) { // An error occured
+          perror(ERR_MSG);
+        } else if (pid == 0) { // Still waiting on children[i]
+          waiting = true;
+        } else { // This particular child is done!
+          children[i] = 0;
+        }
       }
       // Let everyting run
       sleep(1);
