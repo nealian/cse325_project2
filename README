@@ -1,0 +1,21 @@
+SANIC TEEM
+CSE325
+Lab Project 2
+
+
+The SANIC SHEEL, hereafter referred to as "the shell" or "shell", is a simple pseudo-shell that parses input either from standard input or an input file, and executes that input as required. It has no variable substitution or setting (though the environment of the shell is still available, for, eg., PATH). Additionally, argument separation is not changed by quotes or escape codes; any <space> character will delimit the start of the next argument. Commands on the same line may be separated by a ; (<semicolon>) character; all comnands on this line are executed concurrently and may be run out-of-order on the same line. The shell nay be exited with the "exit" or "quit" keywords as standalone commands (if they occur on the same line as other commands, all commands on that line are executed, regardless of the placement of the keyword), or with an End Of File (^D; that is, Ctrl+D) character on an empty prompt line.
+
+The shell may be compiled with the `make` directive, and some simple tests may be executed with the `make test` directive.
+
+Examples:
+$ ./shell
+SANIC TEEM> ls
+example_myshell.c  LICENSE  Makefile  README  shell.c  test
+SANIC TEEM> echo hi; cat /etc/redhat-release; echo kthx
+hi
+Fedora release 21 (Twenty One)
+kthx
+SANIC TEEM> echo start of line; quit; echo end of line
+end of line
+start of line
+$
