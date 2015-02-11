@@ -308,7 +308,7 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
   if(*str == 0)  // All spaces?
   {
     *out = 0;
-    return 1;
+    return 0;
   }
 
   // Trim trailing space
@@ -344,8 +344,15 @@ bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE
   char *subbufcpy = NULL;
   char *command_buffers[MAX_LINE/2] = {NULL};
   bool to_continue = true;
+  
   bufcpy = mystrcpy(buf, buf_len+1);
   token = strtok(bufcpy, CUR_DELIMITER);
+
+  if(!token) {
+    // strtok didn't tokenize anything; most likely an empty string
+    return true;
+  }
+  
   subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
   if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
     // ^Trim input and check for actual statement
