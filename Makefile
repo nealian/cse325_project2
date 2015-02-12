@@ -9,7 +9,7 @@
 ############################################################
 CC = gcc
 CFLAGS = -ggdb -Wall
-VAL = valgrind --quiet --leak-check=yes --undef-value-errors=no --error-exitcode=1
+VAL = valgrind --quiet --leak-check=yes --undef-value-errors=no --max-stackframe=10485760 --error-exitcode=1
 OUT = shell
 TESTS = test/*.in
 T_SEQ = test/sequence*.in

@@ -83,9 +83,8 @@ int main(int argc, char **argv) {
  */
 int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
   pid_t pid;
-  pid_t *children = calloc(num, sizeof(pid_t));
-  int *child_status = calloc(num, sizeof(int));
-  int ret_status;
+  pid_t children[num];
+  int child_status[num];
   int i;
   bool waiting;
 
@@ -126,13 +125,10 @@ int execute_many(char *args[MAX_LINE/2][MAX_LINE/2 + 1], size_t num) {
   } while (waiting);
 
   // We malloc()d it, now we gotta free() it.
-  free(children);
   for (i=0; i<num; i++)
     free_args(args[i]);
 
-  ret_status = child_status[num - 1]; // Return the last status
-  free(child_status);
-  return ret_status;
+  return child_status[num - 1]; // Return the last status
 }
 
 /**
@@ -174,11 +170,9 @@ char *mystrcpy(char *src, size_t size) {
  *              by the caller.
  */
 void parse_input(char *buf, char **argv) {
+  char *bufcpy = mystrcpy(buf, MAX_LINE); // strtok() modifies the original
+  char *token = strtok(bufcpy, ARG_DELIMITER);
   int argc = 0;
-  char *bufcpy = NULL;
-  char *token = NULL;
-  bufcpy = mystrcpy(buf, MAX_LINE); // strtok() modifies the original
-  token = strtok(bufcpy, ARG_DELIMITER);
   if (strlen(token)) {
     argv[argc] = mystrcpy(token, strlen(token) + 1); // Needs room for the NULL
   } else {
@@ -299,9 +293,6 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
   if(len == 0)
     return 0;
 
-  const char *end;
-  size_t out_size;
-
   // Trim leading space
   while(isspace(*str)) str++;
 
@@ -312,12 +303,12 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
   }
 
   // Trim trailing space
-  end = str + strlen(str) - 1;
+  const char *end = str + strlen(str) - 1;
   while(end > str && isspace(*end)) end--;
   end++;
 
   // Set output size to minimum of trimmed string length and buffer size minus 1
-  out_size = (end - str) < len-1 ? (end - str) : len-1;
+  size_t out_size = (end - str) < len-1 ? (end - str) : len-1;
 
   // Copy trimmed string and add null terminator
   memcpy(out, str, out_size);
@@ -338,53 +329,33 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
  */
 bool split_concurrent(char *buf, size_t buf_len, char *args[MAX_LINE/2][MAX_LINE/2 + 1], int *num) {
   *num = 0;
-  int i=0;
-  char *bufcpy = NULL;
-  char *token = NULL;
-  char *subbufcpy = NULL;
   char *command_buffers[MAX_LINE/2] = {NULL};
   bool to_continue = true;
   
-  bufcpy = mystrcpy(buf, buf_len+1);
-  token = strtok(bufcpy, CUR_DELIMITER);
+  char *bufcpy = mystrcpy(buf, buf_len+1);
+  char *token = strtok(bufcpy, CUR_DELIMITER);
 
   if(!token) {
     // strtok didn't tokenize anything; most likely an empty string
     return true;
   }
-  
-  subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
-  if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
-    // ^Trim input and check for actual statement
-    if (!strcmp(subbufcpy, "quit") || !strcmp(subbufcpy, "exit")) {
-      // "quit" handling required; "exit" just because I keep forgetting
-      to_continue = false;
-      (*num)--; // Don't add an element for this
-      free(subbufcpy);
-    } else {
-      command_buffers[*num] = subbufcpy;
-    }
-  } else {
-    (*num)--; // Don't add an element for this; it's empty
-  }
 
-  for ((*num)++; (token = strtok(NULL, CUR_DELIMITER)); (*num)++) {
-    subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
+  do {
+    char *subbufcpy = calloc(strlen(token) + 1, sizeof(char *));
     if (trimwhitespace(subbufcpy, strlen(token) + 1, token)) {
       // ^Trim input and check for actual statement
       if (!strcmp(subbufcpy, "quit") || !strcmp(subbufcpy, "exit")) {
         // "quit" handling required; "exit" just because I keep forgetting
         to_continue = false;
-        (*num)--; // Don't add an element for this
         free(subbufcpy);
       } else {
         command_buffers[*num] = subbufcpy;
+        (*num)++;
       }
-    } else {
-      (*num)--; // Don't add an element for this; it's empty
     }
-  }
+  } while ((token = strtok(NULL, CUR_DELIMITER)));
 
+  int i;
   for(i=0; i<*num; i++) {
     // Now actually process them; separated because strtok() is stateful
     parse_input(command_buffers[i], args[i]);
@@ -409,9 +380,8 @@ bool shell_repl(char *buf, size_t buf_len) {
 
   char *args[MAX_LINE/2][MAX_LINE/2 + 1];
   int num_concurrent;
-  bool to_continue = true;
 
-  to_continue = split_concurrent(buf, buf_len, args, &num_concurrent);
+  bool to_continue = split_concurrent(buf, buf_len, args, &num_concurrent);
   execute_many(args, num_concurrent);
 
   return to_continue;
